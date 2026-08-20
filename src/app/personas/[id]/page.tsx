@@ -1,11 +1,11 @@
-import Link from "next/link";
-import { notFound } from "next/navigation";
+"use client";
 
-import { getDataset } from "@/lib/data";
-import { buildLookups } from "@/lib/lookups";
-import { tagHref } from "@/lib/slug";
-import { computeStats } from "@/lib/stats";
-import { PRIORITY_ORDER } from "@/lib/types";
+import Link from "next/link";
+import { useParams } from "next/navigation";
+import { useMemo } from "react";
+
+import { DatasetPending } from "@/components/dataset-gate";
+import { useDataset } from "@/components/dataset-provider";
 import {
   BarList,
   Breadcrumb,
@@ -17,23 +17,38 @@ import {
   type BarDatum,
 } from "@/components/ui";
 import { UserStoryCard } from "@/components/user-story-card";
+import { buildLookups } from "@/lib/lookups";
+import { tagHref } from "@/lib/slug";
+import { computeStats } from "@/lib/stats";
+import { PRIORITY_ORDER } from "@/lib/types";
 
-export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const persona = getDataset().personas.find((p) => String(p.id) === id);
-  return { title: persona ? persona.name : "Persona" };
-}
+export default function PersonaPage() {
+  const { dataset } = useDataset();
+  const routeParams = useParams<{ id: string }>();
+  const stats = useMemo(() => (dataset ? computeStats(dataset) : null), [dataset]);
 
-export default async function PersonaPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const data = getDataset();
-  const persona = data.personas.find((p) => String(p.id) === id);
-  if (!persona) notFound();
+  if (!dataset || !stats) return <DatasetPending />;
 
-  const lookups = buildLookups(data);
-  const stats = computeStats(data);
+  const id = routeParams?.id ?? "";
+  const persona = dataset.personas.find((p) => String(p.id) === id);
 
-  const stories = data.userStories.filter((story) => story.personaIds.includes(persona.id));
+  if (!persona) {
+    return (
+      <>
+        <Breadcrumb items={[{ label: "Personas", href: "/personas" }, { label: id }]} />
+        <PageHeader
+          title="Persona not found"
+          lead={`No persona with id ${id} exists in the sheets currently loaded.`}
+        />
+        <Link href="/personas" className="text-sm text-ink2 underline hover:text-ink">
+          Back to all personas
+        </Link>
+      </>
+    );
+  }
+
+  const lookups = buildLookups(dataset);
+  const stories = dataset.userStories.filter((story) => story.personaIds.includes(persona.id));
   const rank = stats.personaCounts.findIndex((entry) => entry.item.id === persona.id) + 1;
 
   // Tag usage across this persona's stories only.
@@ -69,7 +84,7 @@ export default async function PersonaPage({ params }: { params: Promise<{ id: st
     value: stories.filter((story) => story.priority === priority).length,
   })).filter((entry) => entry.value > 0);
 
-  const overlaps = stats.personaOverlap
+  const overlaps: BarDatum[] = stats.personaOverlap
     .filter((pair) => pair.a.id === persona.id || pair.b.id === persona.id)
     .map((pair) => {
       const other = pair.a.id === persona.id ? pair.b : pair.a;
@@ -79,7 +94,7 @@ export default async function PersonaPage({ params }: { params: Promise<{ id: st
         value: pair.shared,
         href: `/personas/${other.id}`,
         meta: `${Math.round(pair.similarity * 100)}% of their combined stories`,
-      } satisfies BarDatum;
+      };
     });
 
   const soleOwner = stories.filter((story) => story.personaIds.length === 1);
@@ -89,14 +104,14 @@ export default async function PersonaPage({ params }: { params: Promise<{ id: st
       <Breadcrumb items={[{ label: "Personas", href: "/personas" }, { label: persona.name }]} />
       <PageHeader
         title={persona.name}
-        lead={`Persona #${persona.id} · ranked ${rank} of ${data.personas.length} by number of user stories.`}
+        lead={`Persona #${persona.id} · ranked ${rank} of ${dataset.personas.length} by number of user stories.`}
       />
 
       <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatTile
           label="User stories"
           value={stories.length}
-          hint={`${Math.round((stories.length / Math.max(data.userStories.length, 1)) * 100)}% of the backlog`}
+          hint={`${Math.round((stories.length / Math.max(dataset.userStories.length, 1)) * 100)}% of the backlog`}
         />
         <StatTile
           label="Unique to this persona"
@@ -111,7 +126,7 @@ export default async function PersonaPage({ params }: { params: Promise<{ id: st
         <Card title="Share of the backlog">
           <Meter
             value={stories.length}
-            total={data.userStories.length}
+            total={dataset.userStories.length}
             label="Stories mapped to this persona"
           />
           <div className="mt-4">
@@ -123,10 +138,7 @@ export default async function PersonaPage({ params }: { params: Promise<{ id: st
           <BarList data={categoryBars} emptyMessage="No categories to show." />
         </Card>
 
-        <Card
-          title="Overlap with other personas"
-          subtitle="Stories shared, strongest first"
-        >
+        <Card title="Overlap with other personas" subtitle="Stories shared, strongest first">
           <BarList
             data={overlaps}
             emptyMessage="This persona shares no story with another persona."

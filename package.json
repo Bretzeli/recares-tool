@@ -2,7 +2,7 @@
   "name": "recares-tool",
   "version": "1.0.0",
   "private": true,
-  "description": "Explorer for ESQ personas, user stories and tags, sourced from Google Sheets HTML exports.",
+  "description": "Explorer for ESQ personas, user stories and tags, built from Google Sheets HTML exports the user uploads.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -12,7 +12,6 @@
   },
   "dependencies": {
     "next": "15.5.4",
-    "node-html-parser": "^7.0.1",
     "react": "19.1.1",
     "react-dom": "19.1.1"
   },

@@ -1,22 +1,19 @@
-import Link from "next/link";
+"use client";
 
-import { getDataset } from "@/lib/data";
+import Link from "next/link";
+import { useMemo } from "react";
+
+import { DatasetPending } from "@/components/dataset-gate";
+import { useDataset } from "@/components/dataset-provider";
+import { BarList, Card, Empty, PageHeader, StatTile, type BarDatum } from "@/components/ui";
 import { tagHref } from "@/lib/slug";
 import { computeStats } from "@/lib/stats";
-import {
-  BarList,
-  Card,
-  Empty,
-  PageHeader,
-  StatTile,
-  type BarDatum,
-} from "@/components/ui";
-
-export const metadata = { title: "Statistics" };
 
 export default function StatsPage() {
-  const data = getDataset();
-  const stats = computeStats(data);
+  const { dataset } = useDataset();
+  const stats = useMemo(() => (dataset ? computeStats(dataset) : null), [dataset]);
+
+  if (!dataset || !stats) return <DatasetPending />;
 
   const personaBars: BarDatum[] = stats.personaCounts.map((entry) => ({
     key: String(entry.item.id),
@@ -27,7 +24,7 @@ export default function StatsPage() {
 
   // How many stories are wanted by 0 personas, by 1, by 2, …
   const reachBuckets = new Map<number, number>();
-  for (const story of data.userStories) {
+  for (const story of dataset.userStories) {
     const n = story.personaIds.length;
     reachBuckets.set(n, (reachBuckets.get(n) ?? 0) + 1);
   }
@@ -40,8 +37,7 @@ export default function StatsPage() {
           ? "No persona"
           : `${personaCount} persona${personaCount === 1 ? "" : "s"}`,
       value: storyCount,
-      href:
-        personaCount === 0 ? "/user-stories?assignment=unassigned" : undefined,
+      href: personaCount === 0 ? "/user-stories?assignment=unassigned" : undefined,
     }));
 
   const categoryBars: BarDatum[] = stats.categoryCounts.map((entry) => ({
@@ -145,21 +141,14 @@ export default function StatsPage() {
 
         <Card
           title="Tag applications by tag category"
-          subtitle="Weight of each category across all story↔tag links"
+          subtitle="Weight of each category across all story-to-tag links"
         >
           <BarList data={tagCategoryBars} emptyMessage="No tag categories found." />
         </Card>
       </div>
 
-      <Card
-        title="Persona overlap"
-        subtitle="Pairs sharing the most user stories"
-        className="mb-6"
-      >
-        <BarList
-          data={overlapBars}
-          emptyMessage="No two personas share a user story."
-        />
+      <Card title="Persona overlap" subtitle="Pairs sharing the most user stories" className="mb-6">
+        <BarList data={overlapBars} emptyMessage="No two personas share a user story." />
       </Card>
 
       <Card
@@ -174,7 +163,7 @@ export default function StatsPage() {
                 <th className="border-b border-line px-2 py-2 text-left text-xs font-medium text-muted">
                   Persona
                 </th>
-                {data.personas.map((persona) => (
+                {dataset.personas.map((persona) => (
                   <th
                     key={persona.id}
                     className="border-b border-line px-2 py-2 text-right text-xs font-medium text-muted"
@@ -185,14 +174,14 @@ export default function StatsPage() {
               </tr>
             </thead>
             <tbody>
-              {data.personas.map((row) => (
+              {dataset.personas.map((row) => (
                 <tr key={row.id}>
                   <th className="border-b border-line px-2 py-2 text-left text-xs font-normal text-ink2">
                     <Link href={`/personas/${row.id}`} className="hover:underline">
                       {row.name}
                     </Link>
                   </th>
-                  {data.personas.map((col) => {
+                  {dataset.personas.map((col) => {
                     const own = row.id === col.id;
                     const shared = own
                       ? row.userStoryIds.length

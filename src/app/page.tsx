@@ -1,8 +1,10 @@
-import Link from "next/link";
+"use client";
 
-import { getDataset } from "@/lib/data";
-import { tagHref } from "@/lib/slug";
-import { computeStats } from "@/lib/stats";
+import Link from "next/link";
+import { useMemo } from "react";
+
+import { DatasetPending } from "@/components/dataset-gate";
+import { useDataset } from "@/components/dataset-provider";
 import {
   BarList,
   Card,
@@ -12,10 +14,14 @@ import {
   StatTile,
   type BarDatum,
 } from "@/components/ui";
+import { tagHref } from "@/lib/slug";
+import { computeStats } from "@/lib/stats";
 
 export default function OverviewPage() {
-  const data = getDataset();
-  const stats = computeStats(data);
+  const { dataset } = useDataset();
+  const stats = useMemo(() => (dataset ? computeStats(dataset) : null), [dataset]);
+
+  if (!dataset || !stats) return <DatasetPending />;
 
   const personaBars: BarDatum[] = stats.personaCounts.map((entry) => ({
     key: String(entry.item.id),
@@ -44,7 +50,7 @@ export default function OverviewPage() {
       href: tagHref(entry.item.id),
     }));
 
-  const warnings = data.issues.filter((issue) => issue.severity === "warning").length;
+  const warnings = dataset.issues.filter((issue) => issue.severity === "warning").length;
 
   return (
     <>
@@ -119,31 +125,27 @@ export default function OverviewPage() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card
-          title="Coverage"
-          subtitle="What the mapping sheet actually covers"
-          className="lg:col-span-1"
-        >
+        <Card title="Coverage" subtitle="What the mapping sheet actually covers">
           <div className="flex flex-col gap-4">
             <Meter
               label="Stories with at least one persona"
-              value={data.userStories.length - stats.coverage.unassignedStories.length}
-              total={data.userStories.length}
+              value={dataset.userStories.length - stats.coverage.unassignedStories.length}
+              total={dataset.userStories.length}
             />
             <Meter
               label="Stories carrying at least one tag"
-              value={data.userStories.length - stats.coverage.untaggedStories.length}
-              total={data.userStories.length}
+              value={dataset.userStories.length - stats.coverage.untaggedStories.length}
+              total={dataset.userStories.length}
             />
             <Meter
               label="Personas with at least one story"
-              value={data.personas.length - stats.coverage.unassignedPersonas.length}
-              total={data.personas.length}
+              value={dataset.personas.length - stats.coverage.unassignedPersonas.length}
+              total={dataset.personas.length}
             />
             <Meter
               label="Tags applied at least once"
-              value={data.tags.length - stats.coverage.unusedTags.length}
-              total={data.tags.length}
+              value={dataset.tags.length - stats.coverage.unusedTags.length}
+              total={dataset.tags.length}
             />
           </div>
         </Card>
@@ -161,10 +163,7 @@ export default function OverviewPage() {
           subtitle="Ranked by how many personas asked for them"
           className="lg:col-span-2"
           action={
-            <Link
-              href="/stats"
-              className="text-xs text-ink2 underline hover:text-ink"
-            >
+            <Link href="/stats" className="text-xs text-ink2 underline hover:text-ink">
               Full ranking
             </Link>
           }

@@ -5,8 +5,8 @@ export default function NotFound() {
     <div className="py-16 text-center">
       <h1 className="text-2xl font-semibold text-ink">Not found</h1>
       <p className="mx-auto mt-2 max-w-md text-sm text-ink2">
-        That persona, user story or tag is not in the current sheets. It may have been renamed or
-        removed from the files in <code>./data</code>.
+        There is no page at this address. If you were looking for a persona, user story or tag,
+        it may have been renamed or removed from the sheets you loaded.
       </p>
       <div className="mt-6 flex flex-wrap justify-center gap-2 text-sm">
         {[

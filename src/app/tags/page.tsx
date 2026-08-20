@@ -1,20 +1,20 @@
-import { getDataset } from "@/lib/data";
-import { PageHeader } from "@/components/ui";
+"use client";
+
+import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
+
+import { DatasetPending } from "@/components/dataset-gate";
+import { useDataset } from "@/components/dataset-provider";
 import { TagExplorer } from "@/components/tag-explorer";
+import { PageHeader } from "@/components/ui";
 
-export const metadata = { title: "Tags" };
+function TagsView() {
+  const { dataset } = useDataset();
+  const params = useSearchParams();
 
-type SearchParams = Record<string, string | string[] | undefined>;
+  if (!dataset) return <DatasetPending />;
 
-export default async function TagsPage({
-  searchParams,
-}: {
-  searchParams: Promise<SearchParams>;
-}) {
-  const params = await searchParams;
-  const data = getDataset();
-
-  const raw = Array.isArray(params.usage) ? params.usage[0] : params.usage;
+  const raw = params.get("usage");
   const initialUsage = raw === "used" || raw === "unused" ? raw : "all";
 
   return (
@@ -24,10 +24,19 @@ export default async function TagsPage({
         lead="Tag definitions from us_tags.html, counted by how many user stories carry them. Tags used on a story but never defined in the sheet are flagged as undeclared."
       />
       <TagExplorer
-        tags={data.tags}
-        totalStories={data.userStories.length}
+        key={params.toString()}
+        tags={dataset.tags}
+        totalStories={dataset.userStories.length}
         initialUsage={initialUsage}
       />
     </>
+  );
+}
+
+export default function TagsPage() {
+  return (
+    <Suspense fallback={<div className="py-16 text-center text-sm text-muted">Loading…</div>}>
+      <TagsView />
+    </Suspense>
   );
 }

@@ -1,5 +1,3 @@
-import { parse, type HTMLElement } from "node-html-parser";
-
 /**
  * Readers for the "publish to web" HTML that Google Sheets emits (the `ritz
  * waffle` markup). Two quirks drive everything here:
@@ -9,6 +7,9 @@ import { parse, type HTMLElement } from "node-html-parser";
  *  2. Every `<tr>` starts with a `<th>` carrying the row number, and a cell
  *     whose text overflows its column wraps the text in a `.softmerge-inner`
  *     `<div>` instead of putting it directly in the `<td>`.
+ *
+ * Parsing runs in the browser against the files the user uploads, so it uses
+ * the built-in `DOMParser` — which also decodes HTML entities for us.
  *
  * This file reasons about byte-level encoding damage, so it deliberately
  * contains no non-ASCII literals: every code point is written numerically and
@@ -97,54 +98,28 @@ export function repairMojibake(input: string): string {
   }
 }
 
-const NAMED_ENTITIES: Record<string, string> = {
-  amp: "&",
-  lt: "<",
-  gt: ">",
-  quot: '"',
-  apos: "'",
-  nbsp: " ",
-};
-
-/**
- * Decode the handful of entities Sheets emits. Safe to run on already-decoded
- * text: a bare "&" matches no entity pattern and is left alone.
- */
-function decodeEntities(input: string): string {
-  return input.replace(/&(#x?[0-9a-fA-F]+|[a-zA-Z]+);/g, (match, body: string) => {
-    if (body[0] === "#") {
-      const code =
-        body[1] === "x" || body[1] === "X"
-          ? Number.parseInt(body.slice(2), 16)
-          : Number.parseInt(body.slice(1), 10);
-      return Number.isFinite(code) && code > 0 && code <= 0x10ffff
-        ? String.fromCodePoint(code)
-        : match;
-    }
-    const named = NAMED_ENTITIES[body.toLowerCase()];
-    return named ?? match;
-  });
-}
-
-function cellText(cell: HTMLElement): string {
+function cellText(cell: Element): string {
   const soft = cell.querySelector(".softmerge-inner");
   const raw = (soft ?? cell).textContent ?? "";
-  return repairMojibake(decodeEntities(raw)).replace(NBSP, " ").trim();
+  return repairMojibake(raw).replace(NBSP, " ").trim();
 }
 
 /**
  * Parse the first `<table>` of a Sheets export into a header + data rows.
  * Returns an empty table (rather than throwing) for markup with no table or no
- * body rows — `pivot_table.html` is legitimately blank.
+ * body rows — a blank sheet such as `pivot_table.html` is legitimate input.
  */
 export function parseSheet(html: string): SheetTable {
-  const root = parse(html);
-  const table = root.querySelector("table");
+  if (typeof DOMParser === "undefined") return { header: [], rows: [] };
+
+  const table = new DOMParser().parseFromString(html, "text/html").querySelector("table");
   if (!table) return { header: [], rows: [] };
 
-  const bodyRows = (table.querySelector("tbody") ?? table)
-    .querySelectorAll("tr")
-    .map((tr) => tr.querySelectorAll("td").map(cellText));
+  // `:scope > td` so the row-number <th> is skipped and any nested table's
+  // cells could never bleed into this row.
+  const bodyRows = Array.from((table.querySelector("tbody") ?? table).querySelectorAll("tr")).map(
+    (tr) => Array.from(tr.querySelectorAll(":scope > td")).map(cellText),
+  );
 
   // Rows that are entirely blank carry no information in a spreadsheet dump.
   const meaningful = bodyRows.filter((row) => row.some((cell) => cell !== ""));

@@ -1,34 +1,42 @@
-import { getDataset } from "@/lib/data";
-import { PageHeader } from "@/components/ui";
+"use client";
+
+import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
+
+import { DatasetPending } from "@/components/dataset-gate";
+import { useDataset } from "@/components/dataset-provider";
 import { PersonaExplorer } from "@/components/persona-explorer";
+import { PageHeader } from "@/components/ui";
 
-export const metadata = { title: "Personas" };
+function PersonasView() {
+  const { dataset } = useDataset();
+  const params = useSearchParams();
 
-type SearchParams = Record<string, string | string[] | undefined>;
+  if (!dataset) return <DatasetPending />;
 
-export default async function PersonasPage({
-  searchParams,
-}: {
-  searchParams: Promise<SearchParams>;
-}) {
-  const params = await searchParams;
-  const data = getDataset();
-
-  const raw = Array.isArray(params.coverage) ? params.coverage[0] : params.coverage;
-  const initialCoverage =
-    raw === "assigned" || raw === "unassigned" ? raw : "all";
+  const raw = params.get("coverage");
+  const initialCoverage = raw === "assigned" || raw === "unassigned" ? raw : "all";
 
   return (
     <>
       <PageHeader
         title="Personas"
-        lead="The six personas from persona_sheet.html. The bar shows how much of the backlog each one accounts for; open a persona to see its stories and the tags they pull in."
+        lead="Personas from persona_sheet.html. The bar shows how much of the backlog each one accounts for; open a persona to see its stories and the tags they pull in."
       />
       <PersonaExplorer
-        personas={data.personas}
-        userStories={data.userStories}
+        key={params.toString()}
+        personas={dataset.personas}
+        userStories={dataset.userStories}
         initialCoverage={initialCoverage}
       />
     </>
+  );
+}
+
+export default function PersonasPage() {
+  return (
+    <Suspense fallback={<div className="py-16 text-center text-sm text-muted">Loading…</div>}>
+      <PersonasView />
+    </Suspense>
   );
 }

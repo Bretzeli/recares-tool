@@ -1,31 +1,54 @@
+"use client";
+
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { useParams } from "next/navigation";
 
-import { getDataset } from "@/lib/data";
+import { DatasetPending } from "@/components/dataset-gate";
+import { useDataset } from "@/components/dataset-provider";
+import {
+  Badge,
+  Breadcrumb,
+  Card,
+  Empty,
+  PageHeader,
+  PriorityBadge,
+  StatTile,
+} from "@/components/ui";
 import { tagHref } from "@/lib/slug";
-import { Badge, Breadcrumb, Card, Empty, PageHeader, PriorityBadge, StatTile } from "@/components/ui";
 
-export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const story = getDataset().userStories.find((s) => String(s.id) === id);
-  return { title: story ? `US-${story.id}` : "User story" };
-}
+export default function UserStoryPage() {
+  const { dataset } = useDataset();
+  const routeParams = useParams<{ id: string }>();
 
-export default async function UserStoryPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const data = getDataset();
-  const story = data.userStories.find((s) => String(s.id) === id);
-  if (!story) notFound();
+  if (!dataset) return <DatasetPending />;
+
+  const id = routeParams?.id ?? "";
+  const story = dataset.userStories.find((s) => String(s.id) === id);
+
+  if (!story) {
+    return (
+      <>
+        <Breadcrumb items={[{ label: "User stories", href: "/user-stories" }, { label: id }]} />
+        <PageHeader
+          title="User story not found"
+          lead={`No story with id ${id} exists in the sheets currently loaded.`}
+        />
+        <Link href="/user-stories" className="text-sm text-ink2 underline hover:text-ink">
+          Back to all user stories
+        </Link>
+      </>
+    );
+  }
 
   const personas = story.personaIds
-    .map((personaId) => data.personas.find((p) => p.id === personaId))
+    .map((personaId) => dataset.personas.find((p) => p.id === personaId))
     .filter((p) => p !== undefined);
   const tags = story.tagIds
-    .map((tagId) => data.tags.find((t) => t.id === tagId))
+    .map((tagId) => dataset.tags.find((t) => t.id === tagId))
     .filter((t) => t !== undefined);
 
   // Stories that share at least one persona, ranked by how many they share.
-  const related = data.userStories
+  const related = dataset.userStories
     .filter((other) => other.id !== story.id)
     .map((other) => ({
       story: other,
@@ -38,10 +61,7 @@ export default async function UserStoryPage({ params }: { params: Promise<{ id: 
   return (
     <>
       <Breadcrumb
-        items={[
-          { label: "User stories", href: "/user-stories" },
-          { label: `US-${story.id}` },
-        ]}
+        items={[{ label: "User stories", href: "/user-stories" }, { label: `US-${story.id}` }]}
       />
       <PageHeader title={`US-${story.id}`} lead={story.text} />
 
@@ -67,9 +87,7 @@ export default async function UserStoryPage({ params }: { params: Promise<{ id: 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card title="Personas" subtitle="Who asked for this story">
           {personas.length === 0 ? (
-            <Empty>
-              No persona is mapped to this story in us_persona_mapping.html.
-            </Empty>
+            <Empty>No persona is mapped to this story in us_persona_mapping.html.</Empty>
           ) : (
             <ul className="flex flex-col gap-2">
               {personas.map((persona) => (

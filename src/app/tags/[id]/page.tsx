@@ -1,12 +1,13 @@
-import Link from "next/link";
-import { notFound } from "next/navigation";
+"use client";
 
-import { getDataset } from "@/lib/data";
-import { buildLookups } from "@/lib/lookups";
-import { findTagBySlug, tagHref } from "@/lib/slug";
+import Link from "next/link";
+import { useParams } from "next/navigation";
+
+import { DatasetPending } from "@/components/dataset-gate";
+import { useDataset } from "@/components/dataset-provider";
 import {
-  BarList,
   Badge,
+  BarList,
   Breadcrumb,
   Card,
   Empty,
@@ -15,21 +16,35 @@ import {
   type BarDatum,
 } from "@/components/ui";
 import { UserStoryCard } from "@/components/user-story-card";
+import { buildLookups } from "@/lib/lookups";
+import { findTagBySlug, tagHref } from "@/lib/slug";
 
-export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const tag = findTagBySlug(getDataset().tags, id);
-  return { title: tag ? tag.id : "Tag" };
-}
+export default function TagPage() {
+  const { dataset } = useDataset();
+  const routeParams = useParams<{ id: string }>();
 
-export default async function TagPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const data = getDataset();
-  const tag = findTagBySlug(data.tags, id);
-  if (!tag) notFound();
+  if (!dataset) return <DatasetPending />;
 
-  const lookups = buildLookups(data);
-  const stories = data.userStories.filter((story) => story.tagIds.includes(tag.id));
+  const slug = routeParams?.id ?? "";
+  const tag = findTagBySlug(dataset.tags, slug);
+
+  if (!tag) {
+    return (
+      <>
+        <Breadcrumb items={[{ label: "Tags", href: "/tags" }, { label: slug }]} />
+        <PageHeader
+          title="Tag not found"
+          lead={`No tag matching "${slug}" exists in the sheets currently loaded.`}
+        />
+        <Link href="/tags" className="text-sm text-ink2 underline hover:text-ink">
+          Back to all tags
+        </Link>
+      </>
+    );
+  }
+
+  const lookups = buildLookups(dataset);
+  const stories = dataset.userStories.filter((story) => story.tagIds.includes(tag.id));
 
   // Which personas end up carrying this tag, through their stories.
   const personaUsage = new Map<number, number>();
@@ -64,7 +79,7 @@ export default async function TagPage({ params }: { params: Promise<{ id: string
     }))
     .sort((a, b) => b.value - a.value || a.key.localeCompare(b.key, "en"));
 
-  const siblings = data.tags.filter((t) => t.category === tag.category && t.id !== tag.id);
+  const siblings = dataset.tags.filter((t) => t.category === tag.category && t.id !== tag.id);
   const unassignedCount = stories.filter((story) => story.personaIds.length === 0).length;
 
   return (
@@ -85,7 +100,7 @@ export default async function TagPage({ params }: { params: Promise<{ id: string
         <StatTile
           label="User stories"
           value={stories.length}
-          hint={`${Math.round((stories.length / Math.max(data.userStories.length, 1)) * 100)}% of the backlog`}
+          hint={`${Math.round((stories.length / Math.max(dataset.userStories.length, 1)) * 100)}% of the backlog`}
         />
         <StatTile label="Personas reached" value={personaUsage.size} />
         <StatTile label="Co-occurring tags" value={companionUsage.size} />
@@ -113,10 +128,7 @@ export default async function TagPage({ params }: { params: Promise<{ id: string
       </div>
 
       {siblings.length > 0 && (
-        <Card
-          title={`Other tags in ${tag.category}`}
-          className="mb-6"
-        >
+        <Card title={`Other tags in ${tag.category}`} className="mb-6">
           <div className="flex flex-wrap gap-1.5">
             {siblings.map((sibling) => (
               <Badge key={sibling.id} href={tagHref(sibling.id)} title={sibling.description}>
@@ -145,12 +157,7 @@ export default async function TagPage({ params }: { params: Promise<{ id: string
       ) : (
         <div className="flex flex-col gap-3">
           {stories.map((story) => (
-            <UserStoryCard
-              key={story.id}
-              story={story}
-              lookups={lookups}
-              highlightTagId={tag.id}
-            />
+            <UserStoryCard key={story.id} story={story} lookups={lookups} highlightTagId={tag.id} />
           ))}
         </div>
       )}
